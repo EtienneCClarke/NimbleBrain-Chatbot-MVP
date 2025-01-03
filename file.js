@@ -361,17 +361,20 @@ function createMessageElement(message, sender) {
 
     const el = document.createElement('div');
 
+    el.style.display = 'flex';
+    el.style.width = 'fit-content';
     el.style.paddingInline = padding;
     el.style.borderRadius = borderRadius;
     el.style.fontFamily = fontFamily;
     el.style.background = colors.foreground;
+    el.style.borderBottomLeftRadius = '0';
+    el.style.maxWidth = '80%';
 
     if(sender === 'user') {
         el.style.background = colors.secondary;
         el.style.marginLeft = 'auto';
         el.style.borderBottomRightRadius = '0';
-    } else {
-        el.style.borderBottomLeftRadius = '0';
+        el.style.borderBottomLeftRadius = borderRadius;
     }
 
     el.innerHTML = md.render(`${message}`);
