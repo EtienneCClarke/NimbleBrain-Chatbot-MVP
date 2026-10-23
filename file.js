@@ -10,11 +10,13 @@ class Chatbot {
      * @constructor
      * @param {string} apiKey - The API key for authenticating requests to the chatbot service.
     */
-    constructor(apiKey, config) {
+    constructor(apiKey, history) {
+
         this.endpoint = 'https://api.nimblebrain.ai/v1/agents/67/query';
-        this.apiKey = apiKey
-        this.messages = config?.messages || [];
-        this.setName(config?.name);
+        this.apiKey = apiKey;
+        
+        this.setName(history?.name);
+        this.messages = history?.messages || this.introduction();
     }
 
     /**
@@ -54,7 +56,6 @@ class Chatbot {
         //         'Authorization': `Bearer ${this.apiKey}`
         //     },
         //     body: JSON.stringify({ query }),
-        //     mode: 'no-cors'
         // });
 
         // if(response.status !== 200) {
@@ -63,8 +64,11 @@ class Chatbot {
         
         // const json = await response.json();
         // return json.response;
+
+        // Mimic response delay
+        await sleep(1000);
         
-        // Mock response as API not available
+        // Mock markdown response as API not currently available
         return `**Bold** *Italic* [Link](https://nimblebrain.ai)`;
 
     }
@@ -74,10 +78,9 @@ class Chatbot {
      * @param {string | Markdown} message 
      * @param {string} sender 
     */
-    addToHistory(message, sender) {
-        const timestamp = Date.now();
-        this.messages.push({ message, sender, timestamp });
-        localStorage.setItem('nimblebrain-history', JSON.stringify({ name: this.name, messages: this.messages, timestamp }));
+    addToHistory(message, sender, timestamp) {
+        this.messages.push({ message, sender, timestamp: timestamp || Date.now() });
+        localStorage.setItem('nimblebrain-history', JSON.stringify({ name: this.name, messages: this.messages, timestamp: timestamp || Date.now() }));
     }
 
     /**
@@ -94,16 +97,38 @@ class Chatbot {
         localStorage.setItem('nimblebrain-history', JSON.stringify({ name: this.name, messages: this.messages, timestamp: Date.now() }));
     }
 
+    /**
+     * Introductionary messages from agent.
+     * @returns {Object[]} Array of message objects.
+    */
+    introduction() {
+
+        this.messages = [];
+
+        const introMessages = [
+            {
+                message: 'Hello &#128075;',
+                sender: 'agent',
+            },
+            {
+                message: `My name is ${this.name}. How can I help you today?`,
+                sender: 'agent',
+            },
+        ];
+
+        // introMessages.forEach(msg => {
+        //     this.addToHistory(msg.message, msg.sender, msg.timestamp);
+        // });
+
+        return introMessages; 
+
+    }
+
 }
 
 /* ====== UTILS ====== */
-function getScriptParams() {
-
-    // Id assigned to <script> tag
-    let script = document.getElementById('nimblebrain-chatbot');
-    return {
-        apiKey: script.getAttribute('data-api-key') || undefined,
-    }
+function getApiKey() {
+    return document.getElementById('nimblebrain-chatbot')?.getAttribute('data-api-key') || undefined;
 }
 
 async function sleep(duration) {
@@ -131,8 +156,6 @@ const SVG = {
     minimize: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 14H10V20" stroke="#F0F0F0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 10H14V4" stroke="#F0F0F0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 10L21 3" stroke="#F0F0F0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 21L10 14" stroke="#F0F0F0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
 }
 
-// Remove margin from all elemetns
-
 // Chat is closed by default
 let isChatOpen = false;
 
@@ -158,18 +181,18 @@ const margins = {
 }
 
 /* ====== INITIALIZATION ====== */
-
 // Load history
 let history = JSON.parse(localStorage.getItem('nimblebrain-history'));
+console.log(history);
 
 // Clear chat history if greater than 10 minute(s) old
-if(history && Date.now() - history?.timestamp > 1000 * 60 * 10) {
+if(history && Date.now() - history.timestamp > 1000 * 5) {
     localStorage.removeItem('nimblebrain-history');
     history = null;
 }
 
 // Fetch API key and initialise Chatbot
-const { apiKey } = getScriptParams();
+const { apiKey } = getApiKey();
 let chatbot = new Chatbot(apiKey, history);
 
 // Load markdown parser
@@ -237,8 +260,8 @@ function createChat() {
     
     // Load chat history
     if(chatbot.messages) {
-        chatbot.messages.forEach(message => {
-            const messageElementElement = createMessageElement(message.message, message.sender);
+        chatbot.messages.forEach(msg => {
+            const messageElementElement = createMessageElement(msg.message, msg.sender, messagesContainer);
             messagesContainer.appendChild(messageElementElement);
         });
     }
@@ -343,8 +366,10 @@ function createMessageDisplay() {
 
     const el = document.createElement('div');
 
+    el.setAttribute('id', 'message-display');
+
     el.style.paddingBlock = '20px';
-    el.style.gap = padding;
+    el.style.gap = '4px';
     el.style.display = 'flex';
     el.style.flexDirection = 'column';
     el.style.paddingInline = padding;
@@ -357,9 +382,12 @@ function createMessageDisplay() {
 
 }
 
-function createMessageElement(message, sender) {
+function createMessageElement(message, sender, container) {
 
+    const lastSender = container.lastChild?.getAttribute("data-sender");
+    
     const el = document.createElement('div');
+    el.setAttribute('data-sender', sender);
 
     el.style.display = 'flex';
     el.style.width = 'fit-content';
@@ -369,6 +397,7 @@ function createMessageElement(message, sender) {
     el.style.background = colors.foreground;
     el.style.borderBottomLeftRadius = '0';
     el.style.maxWidth = '80%';
+    el.style.marginTop = lastSender !== sender ? '10px' : 'unset';
 
     if(sender === 'user') {
         el.style.background = colors.secondary;
@@ -376,6 +405,8 @@ function createMessageElement(message, sender) {
         el.style.borderBottomRightRadius = '0';
         el.style.borderBottomLeftRadius = borderRadius;
     }
+
+    el.animate([ { opacity: 0 }, { opacity: 1 }], { duration: 100, iterations: 1 });
 
     el.innerHTML = md.render(`${message}`);
     
@@ -446,8 +477,17 @@ function createQueryInput(messagesContainer) {
         sendButton.style.scale = `1`;
     })
     
-    sendButton.addEventListener('click', async (e) => {
+    sendButton.addEventListener('click', sendMessage);
 
+    input.addEventListener('keydown', (e) => {
+        const key = e.code || e.key;
+        if(key == 'Enter') {
+            sendMessage();
+        }
+    })
+
+    async function sendMessage() {
+        
         if(!input.value) return;
 
         // Get message
@@ -458,22 +498,32 @@ function createQueryInput(messagesContainer) {
         input.placeholder = 'Ask a question...';
 
         // Add user message to DOM
-        const messageElement = createMessageElement(message, 'user');
+        const messageElement = createMessageElement(message, 'user', messagesContainer);
         messagesContainer.appendChild(messageElement);
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
 
-        // Artifical delay
-        await sleep(1000);
+        // Artifical 0.5s delay
+        await sleep(500);
         
-        const response = await chatbot.sendMessage(message);
-        if(response) {
-            const responseElement = createMessageElement(response, 'agent');
-            messagesContainer.appendChild(responseElement);
-        }
-
+        // Placeholder response
+        const responseElement = createMessageElement(`${chatbot.name} is typing...`, 'agent', messagesContainer);
+        responseElement.children[0].style.fontSize = '14px';
+        responseElement.children[0].animate([
+            { opacity: 0.8 },
+            { opacity: 0.5 },
+            { opacity: 0.8 },
+        ], {
+            duration: 4000,
+            iterations: Infinity
+        })
+        messagesContainer.appendChild(responseElement);
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
         
-    })
+        // fetch response and render
+        responseElement.innerHTML = md.render(`${await chatbot.sendMessage(message)}`);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+    }
     
     sendButton.innerHTML = SVG.send;
 
@@ -518,10 +568,12 @@ function createToggleButton(wrapper) {
         if(isChatOpen) {
             wrapper.style.display = 'none';
             el.innerHTML = SVG.help;
+            el.removeAttribute('tabindex');
             isChatOpen = false;
         } else {
             wrapper.style.display = 'flex';
             el.innerHTML = SVG.minimize;
+            el.setAttribute('tabindex', '-1');
             isChatOpen = true;
         }
     })
